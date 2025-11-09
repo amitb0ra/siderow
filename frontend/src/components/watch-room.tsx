@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, FormEvent, useRef, use } from "react";
+import { useEffect, useState, FormEvent, useRef } from "react";
 import { socket } from "@/lib/socket";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VirtualBrowser } from "@/components/virtual-browser";
-import { ChatPanel } from "@/components/chat-panel";
-import { UserPanel } from "@/components/user-panel";
-import { CloudCog, HomeIcon, Share2, X } from "lucide-react";
-import React from "react";
-import ReactPlayer from "react-player";
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { VirtualBrowser } from "./virtual-browser"
+import { ChatPanel } from "./chat-panel"
+import { UserPanel } from "./user-panel"
+import { HomeIcon, Share2, X } from "lucide-react";
+// import ReactPlayer from "react-player";
 
 interface Message {
   id: string;
@@ -17,37 +16,24 @@ interface Message {
 }
 
 interface WatchRoomProps {
-  roomId: string;
-  userName: string;
-  onLeave: () => void;
-  onUserNameChange?: (name: string) => void;
+  roomId: string
+  userName: string
+  onLeave: () => void
+  onUserNameChange?: (name: string) => void
 }
 
-export default function RoomPage({
-  params,
-}: {
-  params: Promise<{ roomId: string }>;
-}) {
-  const { roomId } = use(params);
-  const [userName, setUserName] = useState<string>("Guest");
-  const onLeave = () => {
-    // default behavior: navigate back to previous page
-    if (typeof window !== "undefined") window.history.back();
-  };
-  const onUserNameChange = (name?: string) => {
-    if (name) setUserName(name);
-  };
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState("https://www.google.com");
-  const [quality, setQuality] = useState("720p");
-  const [resolution, setResolution] = useState("Standard");
-  const [showInviteModal, setShowInviteModal] = useState(false);
+export default function WatchRoom({ roomId, userName, onLeave, onUserNameChange }: WatchRoomProps) {
+  const [isPlaying, setIsPlaying] = useState(true)
+  const [currentUrl, setCurrentUrl] = useState("https://www.google.com")
+  const [quality, setQuality] = useState("720p")
+  const [resolution, setResolution] = useState("Standard")
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
   const handleInvite = () => {
-    const inviteLink = `${window.location.origin}?room=${roomId}`;
-    navigator.clipboard.writeText(inviteLink);
-    setShowInviteModal(false);
-  };
+    const inviteLink = `${window.location.origin}?room=${roomId}`
+    navigator.clipboard.writeText(inviteLink)
+    setShowInviteModal(false)
+  }
 
   // removed erroneous duplicate roomId extraction (roomId comes from props)
 
@@ -61,7 +47,7 @@ export default function RoomPage({
   ); // A default video
   const [inputUrl, setInputUrl] = useState("");
   // player playback uses the top-level isPlaying state declared above
-  const playerRef = useRef(null);
+  // const playerRef = useRef<ReactPlayer>(null);
 
   // --- Event Handlers ---
 
@@ -81,24 +67,12 @@ export default function RoomPage({
   };
 
   const handlePlay = () => {
-    const currentTime = playerRef.current?.currentTime || 0;
-    socket.emit("update-state", {
-      roomId,
-      videoUrl,
-      currentTime,
-      isPlaying: true,
-    });
+    socket.emit("playerStateChange", { roomId, playing: true });
     setIsPlaying(true);
   };
 
   const handlePause = () => {
-    const currentTime = playerRef.current?.currentTime || 0;
-    socket.emit("update-state", {
-      roomId,
-      videoUrl,
-      currentTime,
-      isPlaying: false,
-    });
+    socket.emit("playerStateChange", { roomId, playing: false });
     setIsPlaying(false);
   };
 
@@ -131,23 +105,6 @@ export default function RoomPage({
       // playerRef.current?.seekTo(time, "seconds");
     });
 
-    socket.on("sync-state", (state) => {
-      console.log("🔄 Syncing with room:", state);
-      setVideoUrl(state.videoUrl || videoUrl);
-      setIsPlaying(state.isPlaying);
-      if (playerRef.current) {
-        playerRef.current.seekTo(state.currentTime || 0, "seconds");
-      }
-    });
-
-    socket.on("state-updated", (state) => {
-      console.log("🛰 Updated room state:", state);
-      setIsPlaying(state.isPlaying);
-      if (playerRef.current) {
-        playerRef.current.seekTo(state.currentTime || 0, "seconds");
-      }
-    });
-
     return () => {
       socket.disconnect();
     };
@@ -160,26 +117,14 @@ export default function RoomPage({
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold text-foreground">WatchParty</h1>
-            <div className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
-              Room: {roomId}
-            </div>
+            <div className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">Room: {roomId}</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowInviteModal(true)}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={() => setShowInviteModal(true)} className="gap-2">
               <Share2 className="w-4 h-4" />
               Invite Friends
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onLeave()}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={() => onLeave()} className="gap-2">
               <HomeIcon className="w-4 h-4" />
               My Rooms
             </Button>
@@ -200,9 +145,7 @@ export default function RoomPage({
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 max-w-sm w-full mx-4 space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">
-              Invite Friends
-            </h2>
+            <h2 className="text-lg font-semibold text-foreground">Invite Friends</h2>
             <p className="text-sm text-muted-foreground">
               Share this link with your friends to invite them to the room
             </p>
@@ -213,11 +156,7 @@ export default function RoomPage({
               <Button onClick={handleInvite} className="flex-1">
                 Copy Link
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowInviteModal(false)}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => setShowInviteModal(false)} className="flex-1">
                 Close
               </Button>
             </div>
@@ -238,24 +177,21 @@ export default function RoomPage({
               </TabsList>
             </Tabs>
 
-            <div className="flex gap-2 flex-wrap items-center">
-              <form onSubmit={handleUrlChange} className="flex gap-2 flex-1">
-                <input
-                  type="text"
-                  value={inputUrl}
-                  onChange={(e) => setInputUrl(e.target.value)}
-                  placeholder="Enter YouTube URL..."
-                  className="flex-1 px-3 py-2 border border-border rounded bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <Button type="submit" className="bg-green-500">
-                  Load Video
-                </Button>
-              </form>
-              <Button
-                size="sm"
-                variant={quality === "720p" ? "default" : "outline"}
-                onClick={() => setQuality("720p")}
-              >
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={currentUrl}
+                onChange={(e) => setCurrentUrl(e.target.value)}
+                placeholder="Enter URL..."
+                className="flex-1 px-3 py-2 border border-border rounded bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <Button size="sm" variant="outline">
+                →
+              </Button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" variant={quality === "720p" ? "default" : "outline"} onClick={() => setQuality("720p")}>
                 {quality}
               </Button>
               <Button
@@ -265,11 +201,7 @@ export default function RoomPage({
               >
                 {resolution}
               </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
+              <Button size="sm" variant="destructive" onClick={() => setIsPlaying(!isPlaying)}>
                 {isPlaying ? "Stop VBrowser" : "Start VBrowser"}
               </Button>
             </div>
@@ -277,18 +209,7 @@ export default function RoomPage({
 
           {/* Virtual Browser */}
           <div className="flex-1 overflow-auto bg-background">
-            {/* <VirtualBrowser url={currentUrl} isPlaying={isPlaying} /> */}
-            <ReactPlayer
-              ref={playerRef}
-              width="100%"
-              height="100%"
-              src={videoUrl}
-              controls={true}
-              playing={isPlaying}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              // onSeek={handleSeek}
-            />
+            <VirtualBrowser url={currentUrl} isPlaying={isPlaying} />
           </div>
 
           {/* Playback Controls */}
@@ -303,19 +224,11 @@ export default function RoomPage({
               <Button size="sm" variant="outline">
                 ⏭
               </Button>
-              <span className="text-sm text-muted-foreground ml-2">
-                00:32 / 02:15:00
-              </span>
+              <span className="text-sm text-muted-foreground ml-2">00:32 / 02:15:00</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">🔊</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                defaultValue="70"
-                className="w-24"
-              />
+              <input type="range" min="0" max="100" defaultValue="70" className="w-24" />
               <Button size="sm" variant="outline">
                 ⛶
               </Button>
@@ -336,14 +249,11 @@ export default function RoomPage({
             </TabsContent>
 
             <TabsContent value="people" className="flex-1 flex flex-col">
-              <UserPanel
-                userName={userName}
-                onUserNameChange={onUserNameChange}
-              />
+              <UserPanel userName={userName} onUserNameChange={onUserNameChange} />
             </TabsContent>
           </Tabs>
         </div>
       </div>
     </div>
-  );
+  )
 }

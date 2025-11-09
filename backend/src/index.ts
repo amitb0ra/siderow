@@ -19,10 +19,38 @@ const PORT = 8080;
 app.use(cors());
 app.use(express.json());
 
+// Store active rooms
+const activeRooms = new Set<string>();
+
+const rooms = new Map();
+
+function getRoomState(roomId: string) {
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, {
+      videoUrl: "",
+      currentTime: 0,
+      isPlaying: false,
+    });
+  }
+  return rooms.get(roomId);
+}
+
 app.post("/api/create-room", (req, res) => {
   const roomId = uuidv4();
+  activeRooms.add(roomId);
   console.log(`[REST] Room created: ${roomId}`);
   res.status(201).json({ roomId });
+});
+
+app.post("/api/join-room", (req, res) => {
+  const { roomId } = req.body;
+
+  if (!roomId || !activeRooms.has(roomId)) {
+    return res.status(404).json({ error: "Room not found" });
+  }
+
+  console.log(`[REST] User joining room: ${roomId}`);
+  res.status(200).json({ success: true });
 });
 
 io.on("connection", (socket) => {
@@ -30,8 +58,24 @@ io.on("connection", (socket) => {
 
   // --- Chat and Room Logic (Existing) ---
   socket.on("joinRoom", (roomId: string) => {
+    if (!activeRooms.has(roomId)) {
+      console.warn(`[Socket.IO] Invalid room join attempt: ${roomId}`);
+      socket.emit("error", "Room not found");
+      return;
+    }
+
     socket.join(roomId);
     console.log(`[Socket.IO] User ${socket.id} joined room ${roomId}`);
+
+    const state = getRoomState(roomId);
+    // send current state to the new user
+    socket.emit("sync-state", state);
+  });
+
+  socket.on("update-state", ({ roomId, videoUrl, currentTime, isPlaying }) => {
+    const state = getRoomState(roomId);
+    Object.assign(state, { videoUrl, currentTime, isPlaying });
+    socket.to(roomId).emit("state-updated", state);
   });
 
   socket.on("sendMessage", (data: { roomId: string; message: string }) => {
