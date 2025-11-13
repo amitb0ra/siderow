@@ -4,10 +4,9 @@ import { useEffect, useState, FormEvent, useRef, use } from "react";
 import { socket } from "@/lib/socket";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VirtualBrowser } from "@/components/virtual-browser";
 import { ChatPanel } from "@/components/chat-panel";
 import { UserPanel } from "@/components/user-panel";
-import { CloudCog, HomeIcon, Share2, X } from "lucide-react";
+import { HomeIcon, Share2, X } from "lucide-react";
 import React from "react";
 import ReactPlayer from "react-player";
 
@@ -81,7 +80,7 @@ export default function RoomPage({
   };
 
   const handlePlay = () => {
-    const currentTime = playerRef.current?.currentTime || 0;
+    const currentTime = 0;
     socket.emit("update-state", {
       roomId,
       videoUrl,
@@ -92,7 +91,7 @@ export default function RoomPage({
   };
 
   const handlePause = () => {
-    const currentTime = playerRef.current?.currentTime || 0;
+    const currentTime = 0;
     socket.emit("update-state", {
       roomId,
       videoUrl,
@@ -136,7 +135,7 @@ export default function RoomPage({
       setVideoUrl(state.videoUrl || videoUrl);
       setIsPlaying(state.isPlaying);
       if (playerRef.current) {
-        playerRef.current.seekTo(state.currentTime || 0, "seconds");
+        // playerRef.current.seekTo(state.currentTime || 0, "seconds");
       }
     });
 
@@ -144,7 +143,7 @@ export default function RoomPage({
       console.log("🛰 Updated room state:", state);
       setIsPlaying(state.isPlaying);
       if (playerRef.current) {
-        playerRef.current.seekTo(state.currentTime || 0, "seconds");
+        // playerRef.current.seekTo(state.currentTime || 0, "seconds");
       }
     });
 
@@ -173,15 +172,6 @@ export default function RoomPage({
             >
               <Share2 className="w-4 h-4" />
               Invite Friends
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onLeave()}
-              className="gap-2"
-            >
-              <HomeIcon className="w-4 h-4" />
-              My Rooms
             </Button>
             <Button
               variant="outline"
@@ -231,13 +221,6 @@ export default function RoomPage({
         <div className="flex-1 flex flex-col border-r border-border">
           {/* Browser Controls */}
           <div className="bg-card border-b border-border p-4 space-y-3">
-            <Tabs defaultValue="watching" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="watching">Watching</TabsTrigger>
-                <TabsTrigger value="browser">Virtual Browser</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
             <div className="flex gap-2 flex-wrap items-center">
               <form onSubmit={handleUrlChange} className="flex gap-2 flex-1">
                 <input
@@ -251,33 +234,11 @@ export default function RoomPage({
                   Load Video
                 </Button>
               </form>
-              <Button
-                size="sm"
-                variant={quality === "720p" ? "default" : "outline"}
-                onClick={() => setQuality("720p")}
-              >
-                {quality}
-              </Button>
-              <Button
-                size="sm"
-                variant={resolution === "Standard" ? "default" : "outline"}
-                onClick={() => setResolution("Standard")}
-              >
-                {resolution}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
-                {isPlaying ? "Stop VBrowser" : "Start VBrowser"}
-              </Button>
             </div>
           </div>
 
-          {/* Virtual Browser */}
+          {/* Video Player */}
           <div className="flex-1 overflow-auto bg-background">
-            {/* <VirtualBrowser url={currentUrl} isPlaying={isPlaying} /> */}
             <ReactPlayer
               ref={playerRef}
               width="100%"
