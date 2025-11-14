@@ -1,26 +1,36 @@
 "use client";
 
-import { SetStateAction, useState } from "react";
+import { SetStateAction, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, LogIn, Zap, Users, Clock, LinkIcon, Play } from "lucide-react";
+import {
+  Plus,
+  LogIn,
+  Zap,
+  Users,
+  Clock,
+  LinkIcon,
+  History,
+} from "lucide-react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export default function HomePage() {
   const router = useRouter();
-  const [joinCode, setJoinCode] = useState("");
+
+  const [inputCode, setInputCode] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [lastJoinedRoom, setLastJoinedRoom] = useState("");
 
-  // todo: Fetch recently joined rooms from local storage
-  const recentlyJoinedRooms = [
-    { id: "xyz-123", name: "Family Movie Night" },
-    { id: "abc-456", name: "Friends Watch Party" },
-    { id: "def-789", name: "Gaming Stream" },
-  ];
+  useEffect(() => {
+    const savedRoom = localStorage.getItem("lastJoinedRoom");
+    if (savedRoom) {
+      setLastJoinedRoom(savedRoom);
+    }
+  }, []);
 
   const handleCreateRoom = async () => {
     try {
@@ -30,6 +40,7 @@ export default function HomePage() {
         "http://localhost:8080/api/create-room"
       );
       const { roomId } = response.data;
+      localStorage.setItem("lastJoinedRoom", roomId);
       router.push(`/room/${roomId}`);
     } catch (error) {
       console.error("Error creating room:", error);
@@ -38,8 +49,10 @@ export default function HomePage() {
     setIsCreating(false);
   };
 
-  const handleJoinRoom = async () => {
-    if (!joinCode.trim()) {
+  const handleJoinRoom = async (roomIdToJoin?: string) => {
+    const roomId = (roomIdToJoin || inputCode).trim();
+
+    if (!roomId) {
       toast.error("Please enter a valid room code");
       return;
     }
@@ -48,11 +61,12 @@ export default function HomePage() {
       setIsJoining(true);
       await new Promise((r) => setTimeout(r, 300));
       const response = await axios.post("http://localhost:8080/api/join-room", {
-        roomId: joinCode.trim(),
+        roomId: roomId,
       });
 
       if (response.status === 200) {
-        router.push(`/room/${joinCode.trim()}`);
+        localStorage.setItem("lastJoinedRoom", roomId);
+        router.push(`/room/${roomId}`);
       }
     } catch (error) {
       console.error("Error joining room:", error);
@@ -72,8 +86,10 @@ export default function HomePage() {
         text.match(
           /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/
         );
+
       if (roomIdMatch && roomIdMatch[1]) {
-        setJoinCode(roomIdMatch[1]);
+        setInputCode(roomIdMatch[1]);
+        toast.success("Room code pasted!");
       }
     } catch (err) {
       console.error("Failed to read clipboard contents: ", err);
@@ -81,9 +97,9 @@ export default function HomePage() {
     }
   };
 
-  const handleRecentRoomClick = (roomId: SetStateAction<string>) => {
-    setJoinCode(roomId);
-    handleJoinRoom();
+  const handleRecentRoomClick = (roomId: string) => {
+    setInputCode(roomId);
+    handleJoinRoom(roomId);
   };
 
   return (
@@ -105,7 +121,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
           {/* Create Room Card */}
           <Card className="p-8 bg-gradient-to-br from-card to-card/80 border-border hover:border-primary/50 transition-all hover:shadow-lg flex flex-col">
-            <div className="space-y-4 flex-1 flex flex-col">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-primary/10 rounded-lg">
                   <Plus className="w-6 h-6 text-primary" />
@@ -120,9 +136,10 @@ export default function HomePage() {
                 Start a new watch party and share the room ID with your friends.
                 They can join instantly!
               </p>
+            </div>
 
-              {/* Features List */}
-              <div className="bg-muted/50 p-4 rounded-lg my-4 border border-border/50">
+            <div className="flex-1 py-6">
+              <div className="bg-muted/50 p-4 rounded-lg border border-border/50 h-full flex flex-col justify-center">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                   <Clock className="w-4 h-4" />
                   <span>Synchronized playback</span>
@@ -136,8 +153,9 @@ export default function HomePage() {
                   <span>Real-time chat during playback</span>
                 </div>
               </div>
+            </div>
 
-              {/* Create Room Button */}
+            <div className="space-y-3">
               <Button
                 onClick={handleCreateRoom}
                 disabled={isCreating}
@@ -154,7 +172,7 @@ export default function HomePage() {
 
           {/* Join Room Card */}
           <Card className="p-8 bg-gradient-to-br from-card to-card/80 border-border hover:border-primary/50 transition-all hover:shadow-lg flex flex-col">
-            <div className="space-y-4 flex-1 flex flex-col">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-primary/10 rounded-lg">
                   <LogIn className="w-6 h-6 text-primary" />
@@ -169,33 +187,37 @@ export default function HomePage() {
                 Have a room ID? Paste it here to join your friends' watch party
                 and start watching together!
               </p>
+            </div>
 
-              {/* Recently Joined Rooms List */}
-              {recentlyJoinedRooms.length > 0 && (
-                <div className="mt-6 space-y-2">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Recently Joined
-                  </h3>
-                  {recentlyJoinedRooms.map((room) => (
-                    <Button
-                      key={room.id}
-                      variant="ghost"
-                      onClick={() => handleRecentRoomClick(room.id)}
-                      className="w-full justify-start gap-2 text-base text-muted-foreground hover:text-primary hover:bg-primary/5 px-4 py-3 h-auto"
-                    >
-                      <Play className="h-4 w-4 text-primary" />
-                      <span>{room.name}</span>
-                    </Button>
-                  ))}
+            <div className="flex-1 py-6">
+              {lastJoinedRoom && (
+                <div className="h-full">
+                  <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                    Recent Room
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleRecentRoomClick(lastJoinedRoom)}
+                    className="w-full justify-start gap-3 text-sm h-12 bg-muted/50 hover:bg-muted"
+                  >
+                    <History className="h-4 w-4 text-primary" />
+                    <span className="font-mono text-foreground/80 truncate flex-1 text-left">
+                      {lastJoinedRoom}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Click to join
+                    </span>
+                  </Button>
                 </div>
               )}
+            </div>
 
-              {/* Join Room Input */}
+            <div className="space-y-3">
               <div className="relative">
                 <Input
                   placeholder="Enter room ID..."
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
                   onKeyDown={(e) =>
                     e.key === "Enter" && !isJoining && handleJoinRoom()
                   }
@@ -212,10 +234,8 @@ export default function HomePage() {
                   <LinkIcon className="h-5 w-5" />
                 </Button>
               </div>
-
-              {/* Join Room Button*/}
               <Button
-                onClick={handleJoinRoom}
+                onClick={() => handleJoinRoom(inputCode)}
                 disabled={isJoining}
                 variant="outline"
                 className="w-full gap-3 h-14 font-semibold text-lg rounded-lg border-primary text-primary hover:bg-primary/5"
