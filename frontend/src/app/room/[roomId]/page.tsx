@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatPanel } from "@/components/chat-panel";
 import { UserPanel } from "@/components/user-panel";
-import { Share2, X, Video, Loader2 } from "lucide-react";
+import { Share2, X, Video, Loader2, AlertTriangle } from "lucide-react";
 import ReactPlayer from "react-player";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
@@ -38,22 +38,44 @@ export default function RoomPage({
   const router = useRouter();
   const { roomId } = use(params);
   const playerRef = useRef<HTMLVideoElement | null>(null);
+
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   const [inputUrl, setInputUrl] = useState(
-    "https://www.youtube.com/watch?v=ri1Ar5nEq4s" // for testing :)
+    "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
   );
+
+  // video states
+  const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Add validation state
+  // room validation states
   const [isValidating, setIsValidating] = useState(true);
   const [isInvalid, setIsInvalid] = useState(false);
 
+  // chat states
   const [messages, setMessages] = useState<Message[]>([]);
-  const [users, setUsers] = useState<string[]>([]);
 
-  // This localStorage logic is now CRITICAL for the presence system
+  // people states
+  const [users, setUsers] = useState<string[]>([]);
   const [username, setUserName] = useState<string | null>(null);
+
+  const checkRoomExists = async () => {
+    try {
+      await axios.post("http://localhost:8080/api/check-room", {
+        roomId: roomId,
+      });
+      setIsValidating(false);
+    } catch (error) {
+      console.error("Room validation failed:", error);
+      toast.error("Room does not exist.");
+      setIsValidating(false);
+      setIsInvalid(true);
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
+    }
+  };
+
   useEffect(() => {
     const savedName = localStorage.getItem("username");
     if (savedName) {
@@ -76,10 +98,6 @@ export default function RoomPage({
   const onLeave = () => {
     socket.disconnect();
     router.push("/");
-  };
-
-  const onUserNameChange = (name?: string) => {
-    if (name) setUserName(name);
   };
 
   const handleInvite = () => {
@@ -113,34 +131,12 @@ export default function RoomPage({
     if (!username) {
       return;
     }
-    const validateAndJoinRoom = async () => {
-      try {
-        // Step 1: Call the HTTP endpoint first to check if the room exists
-        await axios.post("http://localhost:8080/api/join-room", {
-          roomId: roomId,
-        });
 
-        // Step 2: Room is valid! Stop loading and connect to socket.
-        setIsValidating(false);
-        socket.connect();
-        // Step 3: Send BOTH roomId and username
-        socket.emit("room:join", { roomId, username });
-      } catch (error) {
-        // Step 4: Room is INVALID. Show error and redirect.
-        console.error("Failed to join room:", error);
-        toast.error("Room not found. Redirecting to home page.");
-        setIsValidating(false);
-        setIsInvalid(true);
-        // Redirect home after 2 seconds
-        setTimeout(() => {
-          router.push("/");
-        }, 2000);
-      }
-    };
+    checkRoomExists().then(() => {
+      socket.connect();
+      socket.emit("room:join", { roomId, username });
+    });
 
-    validateAndJoinRoom();
-
-    // --- Socket Listeners (Now they are set up *after* validation) ---
     const seekToTime = (time: number) => {
       if (playerRef.current) {
         const timeDifference = Math.abs(playerRef.current.currentTime - time);
@@ -218,23 +214,32 @@ export default function RoomPage({
     };
   }, [roomId, username, router]);
 
-  // --- 5. Add a Loading/Invalid State to the UI ---
+  // validation loading state
   if (isValidating) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Validating room...</p>
+        <p className="text-lg text-muted-foreground"> Wait a moment...</p>
       </div>
     );
   }
 
+  // invalid room state
   if (isInvalid) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
-        <p className="text-lg text-muted-foreground">Room not found</p>
-        <p className="text-sm text-muted-foreground">
-          Redirecting to home page...
-        </p>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-card rounded-lg shadow-lg p-8 flex flex-col items-center text-center">
+          <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
+          <h1 className="text-2xl font-bold text-destructive-foreground mb-2">
+            Invalid Room
+          </h1>
+          <p className="text-lg text-muted-foreground mb-6">
+            The room you are trying to join does not exist.
+          </p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Redirecting to the home page...
+          </p>
+        </div>
       </div>
     );
   }
@@ -356,11 +361,7 @@ export default function RoomPage({
             </TabsContent>
 
             <TabsContent value="people" className="flex-1 flex flex-col">
-              <UserPanel
-                username={username ?? ""}
-                onUserNameChange={onUserNameChange}
-                users={users}
-              />
+              <UserPanel username={username ?? ""} users={users} />
             </TabsContent>
           </Tabs>
         </div>

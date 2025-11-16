@@ -51,17 +51,15 @@ const startServer = async () => {
     res.status(201).json({ roomId });
   });
 
-  app.post("/api/join-room", async (req, res) => {
+  app.post("/api/check-room", async (req, res) => {
     const { roomId } = req.body;
-
-    // The new "guard": Check if the room's state HASH exists.
     const roomExists = await redisClient.exists(`room:${roomId}`);
 
     if (!roomId || !roomExists) {
       return res.status(404).json({ error: "Room not found" });
     }
 
-    console.log(`[REST] User joining room: ${roomId}`);
+    console.log(`[REST] Room exists check: ${roomId}`);
     res.status(200).json({ success: true });
   });
 

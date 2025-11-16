@@ -2,14 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Users, Mic, MicOff, Volume2, VolumeX, X } from "lucide-react";
+import { Users } from "lucide-react";
 import { socket } from "@/lib/socket";
 
 interface UserPanelProps {
   username: string;
-  onUserNameChange?: (name: string) => void;
   users: string[];
 }
 
@@ -21,18 +18,7 @@ const avatarColors = [
   "bg-orange-500",
 ];
 
-export function UserPanel({
-  username,
-  onUserNameChange,
-  users,
-}: UserPanelProps) {
-  const [editableName, setEditableName] = useState(username);
-  const [isSavingName, setIsSavingName] = useState(false);
-
-  useEffect(() => {
-    setEditableName(username);
-  }, [username]);
-
+export function UserPanel({ username, users }: UserPanelProps) {
   const getAvatarColor = (name: string) => {
     if (!name) return avatarColors[0];
     const hash =
@@ -41,52 +27,8 @@ export function UserPanel({
     return avatarColors[hash % avatarColors.length];
   };
 
-  const handleSaveName = () => {
-    const newName = editableName.trim();
-    // Use the `username` prop as the "oldName"
-    const oldName = username;
-
-    if (newName && newName !== oldName) {
-      // 1. Tell the backend about the name change *first*.
-      socket.emit("user:name_change", { oldName, newName });
-
-      // 2. Then, update local state
-      localStorage.setItem("username", newName);
-      onUserNameChange?.(newName);
-      setIsSavingName(false);
-    }
-  };
-
   return (
     <div className="flex flex-col h-full p-4 space-y-4">
-      <div>
-        <label className="text-sm font-semibold text-foreground block mb-2">
-          My name is:
-        </label>
-        <div className="flex gap-2">
-          <Input
-            value={editableName}
-            onChange={(e) => {
-              setEditableName(e.target.value);
-              setIsSavingName(editableName.trim() !== username.trim());
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSaveName();
-            }}
-            className="text-sm flex-1"
-            placeholder="Enter your name"
-          />
-          <Button
-            onClick={handleSaveName}
-            disabled={!editableName.trim() || editableName === username}
-            className="px-4"
-            size="sm"
-          >
-            Save
-          </Button>
-        </div>
-      </div>
-
       <div className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center gap-2 mb-3">
           <Users className="w-4 h-4 text-primary" />
