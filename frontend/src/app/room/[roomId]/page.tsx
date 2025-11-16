@@ -21,6 +21,15 @@ import { generateRandomName } from "@/lib/random-name";
 import axios from "axios";
 import { toast } from "sonner";
 
+export interface Message {
+  id: string;
+  user: string;
+  text: string;
+  timestamp: string;
+  isSystem?: boolean;
+  avatar?: string;
+}
+
 export default function RoomPage({
   params,
 }: {
@@ -39,6 +48,9 @@ export default function RoomPage({
   // Add validation state
   const [isValidating, setIsValidating] = useState(true);
   const [isInvalid, setIsInvalid] = useState(false);
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [users, setUsers] = useState<string[]>([]);
 
   // This localStorage logic is now CRITICAL for the presence system
   const [userName, setUserName] = useState<string>(() => {
@@ -133,6 +145,16 @@ export default function RoomPage({
       }
     };
 
+    const handleChatHistory = (history: Message[]) => {
+      setMessages(history);
+    };
+    const handleReceiveMessage = (msg: Message) => {
+      setMessages((prev) => [...prev, msg]);
+    };
+    const handleUsersUpdate = (userList: string[]) => {
+      setUsers(userList);
+    };
+
     socket.on("room:sync", (state) => {
       console.log("Room state synced:", state);
       setVideoUrl(state.videoUrl || undefined);
@@ -171,6 +193,10 @@ export default function RoomPage({
       seekToTime(data.time);
     });
 
+    socket.on("chat:history", handleChatHistory);
+    socket.on("chat:receive", handleReceiveMessage);
+    socket.on("room:users_update", handleUsersUpdate);
+
     return () => {
       socket.off("room:sync");
       socket.off("room:join_failed");
@@ -178,6 +204,11 @@ export default function RoomPage({
       socket.off("video:played");
       socket.off("video:paused");
       socket.off("video:seeked");
+
+      socket.off("chat:history", handleChatHistory);
+      socket.off("chat:receive", handleReceiveMessage);
+      socket.off("room:users_update", handleUsersUpdate);
+
       socket.disconnect();
     };
   }, [roomId, userName, router]);
@@ -313,13 +344,18 @@ export default function RoomPage({
             </TabsList>
 
             <TabsContent value="chat" className="flex-1 flex flex-col">
-              <ChatPanel userName={userName} roomId={roomId} />
+              <ChatPanel
+                userName={userName}
+                roomId={roomId}
+                messages={messages}
+              />
             </TabsContent>
 
             <TabsContent value="people" className="flex-1 flex flex-col">
               <UserPanel
                 userName={userName}
                 onUserNameChange={onUserNameChange}
+                users={users}
               />
             </TabsContent>
           </Tabs>

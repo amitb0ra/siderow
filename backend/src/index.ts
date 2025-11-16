@@ -100,6 +100,9 @@ const startServer = async () => {
 
         console.log(`[Socket.IO] User ${socket.id} joined room ${roomId}`);
 
+        const userList = await redisClient.sMembers(`users:${roomId}`);
+        io.to(roomId).emit("room:users_update", userList);
+
         const roomState = await redisClient.hGetAll(`room:${roomId}`);
 
         socket.emit("room:sync", {
@@ -188,7 +191,11 @@ const startServer = async () => {
       if (roomId && userName) {
         await redisClient.sRem(`users:${roomId}`, userName);
 
-        const userCount = await redisClient.sCard(`users:${roomId}`);
+        // const userCount = await redisClient.sCard(`users:${roomId}`);
+        const userList = await redisClient.sMembers(`users:${roomId}`);
+        io.to(roomId).emit("room:users_update", userList);
+        
+        const userCount = userList.length;
 
         console.log(`[Socket.IO] Users left in ${roomId}: ${userCount}`);
 
