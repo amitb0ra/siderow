@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatPanel } from "@/components/chat-panel";
 import { UserPanel } from "@/components/user-panel";
-import { Share2, X, Video } from "lucide-react";
+import { Share2, X, Video, Loader2 } from "lucide-react";
 import ReactPlayer from "react-player";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { generateRandomName } from "@/lib/random-name";
+import axios from "axios";
+import { toast } from "sonner";
 
 export default function RoomPage({
   params,
@@ -27,13 +29,27 @@ export default function RoomPage({
   const router = useRouter();
   const { roomId } = use(params);
   const playerRef = useRef<HTMLVideoElement | null>(null);
-  const [userName, setUserName] = useState<string>(generateRandomName);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   const [inputUrl, setInputUrl] = useState(
     "https://www.youtube.com/watch?v=ri1Ar5nEq4s" // for testing :)
   );
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Add validation state
+  const [isValidating, setIsValidating] = useState(true);
+  const [isInvalid, setIsInvalid] = useState(false);
+
+  // This localStorage logic is now CRITICAL for the presence system
+  const [userName, setUserName] = useState<string>(() => {
+    const savedName = localStorage.getItem("watchparty_userName");
+    if (savedName) {
+      return savedName;
+    }
+    const newName = generateRandomName();
+    localStorage.setItem("watchparty_userName", newName);
+    return newName;
+  });
 
   const getCurrentTime = (): number => playerRef.current?.currentTime ?? 0;
 
@@ -80,9 +96,34 @@ export default function RoomPage({
   };
 
   useEffect(() => {
-    socket.connect();
-    socket.emit("room:join", roomId);
+    const validateAndJoinRoom = async () => {
+      try {
+        // Step 1: Call the HTTP endpoint first to check if the room exists
+        await axios.post("http://localhost:8080/api/join-room", {
+          roomId: roomId,
+        });
 
+        // Step 2: Room is valid! Stop loading and connect to socket.
+        setIsValidating(false);
+        socket.connect();
+        // Step 3: Send BOTH roomId and userName
+        socket.emit("room:join", { roomId, userName });
+      } catch (error) {
+        // Step 4: Room is INVALID. Show error and redirect.
+        console.error("Failed to join room:", error);
+        toast.error("Room not found. Redirecting to home page.");
+        setIsValidating(false);
+        setIsInvalid(true);
+        // Redirect home after 2 seconds
+        setTimeout(() => {
+          router.push("/");
+        }, 2000);
+      }
+    };
+
+    validateAndJoinRoom();
+
+    // --- Socket Listeners (Now they are set up *after* validation) ---
     const seekToTime = (time: number) => {
       if (playerRef.current) {
         const timeDifference = Math.abs(playerRef.current.currentTime - time);
@@ -97,6 +138,13 @@ export default function RoomPage({
       setVideoUrl(state.videoUrl || undefined);
       setIsPlaying(state.isPlaying);
       seekToTime(state.currentTime);
+    });
+
+    // Listen for the failure event from the backend
+    socket.on("room:join_failed", (data) => {
+      console.error("Socket join failed:", data.error);
+      toast.error("Failed to connect to room. Please try again.");
+      router.push("/");
     });
 
     socket.on("video:changed", (state) => {
@@ -125,13 +173,36 @@ export default function RoomPage({
 
     return () => {
       socket.off("room:sync");
+      socket.off("room:join_failed");
       socket.off("video:changed");
       socket.off("video:played");
       socket.off("video:paused");
       socket.off("video:seeked");
       socket.disconnect();
     };
-  }, [roomId]);
+  }, [roomId, userName, router]);
+
+  // --- 5. Add a Loading/Invalid State to the UI ---
+  if (isValidating) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Validating room...</p>
+      </div>
+    );
+  }
+
+  if (isInvalid) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <X className="w-12 h-12 text-destructive mb-4" />
+        <p className="text-lg text-muted-foreground">Room not found.</p>
+        <p className="text-sm text-muted-foreground">
+          Redirecting to home page...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
