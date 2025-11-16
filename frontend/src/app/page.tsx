@@ -37,7 +37,8 @@ export default function HomePage() {
       setIsCreating(true);
       await new Promise((resolve) => setTimeout(resolve, 600));
       const response = await axios.post(
-        "http://localhost:8080/api/create-room"
+        `${process.env.NEXT_PUBLIC_SERVER_URL}/api/create-room` ||
+          "http://localhost:8080/api/create-room"
       );
       const { roomId } = response.data;
       localStorage.setItem("lastJoinedRoom", roomId);
