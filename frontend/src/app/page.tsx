@@ -61,9 +61,12 @@ export default function HomePage() {
     try {
       setIsJoining(true);
       await new Promise((r) => setTimeout(r, 300));
-      const response = await axios.post("http://localhost:8080/api/join-room", {
-        roomId: roomId,
-      });
+      const response = await axios.post(
+        "http://localhost:8080/api/check-room",
+        {
+          roomId: roomId,
+        }
+      );
 
       if (response.status === 200) {
         localStorage.setItem("lastJoinedRoom", roomId);
