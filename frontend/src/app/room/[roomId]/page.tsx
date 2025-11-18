@@ -50,38 +50,38 @@ export default function RoomPage({
   const [inputUrl, setInputUrl] = useState(
     "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
   );
+  const [username, setUserName] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(true);
+  const [isInvalid, setIsInvalid] = useState(false);
+
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [serverClockOffset, setServerClockOffset] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | undefined>(undefined);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [isValidating, setIsValidating] = useState(true);
-  const [isInvalid, setIsInvalid] = useState(false);
   const [roomStatus, setRoomStatus] = useState("playing");
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<string[]>([]);
-  const [username, setUserName] = useState<string | null>(null);
+
   const [playerState, setPlayerState] = useState<RoomState | null>(null);
 
   useEffect(() => {
-    const savedName = localStorage.getItem("username");
-    if (savedName) {
-      setUserName(savedName);
+    const lastUsername = localStorage.getItem("username");
+    if (lastUsername) {
+      setUserName(lastUsername);
     } else {
-      const newName = generateRandomName();
-      localStorage.setItem("username", newName);
-      setUserName(newName);
+      const randomUsername = generateRandomName();
+      localStorage.setItem("username", randomUsername);
+      setUserName(randomUsername);
     }
   }, []);
 
   useEffect(() => {
     if (!roomId) return;
 
-    const checkRoomExists = async () => {
+    (async () => {
       try {
-        await axios.post("http://localhost:8080/api/check-room", {
-          roomId: roomId,
-        });
+        await axios.post("http://localhost:8080/api/check-room", { roomId });
         setIsValidating(false);
       } catch (error) {
         console.error("Room validation failed:", error);
@@ -92,9 +92,7 @@ export default function RoomPage({
           router.push("/");
         }, 2000);
       }
-    };
-
-    checkRoomExists();
+    })();
   }, [roomId, router]);
 
   useEffect(() => {
@@ -105,16 +103,6 @@ export default function RoomPage({
     syncClock();
     socket.connect();
     socket.emit("room:join", { roomId, username });
-
-    const handleChatHistory = (history: Message[]) => {
-      setMessages(history);
-    };
-    const handleReceiveMessage = (msg: Message) => {
-      setMessages((prev) => [...prev, msg]);
-    };
-    const handleUsersUpdate = (userList: string[]) => {
-      setUsers(userList);
-    };
 
     socket.on(
       "video:command_seek",
@@ -275,6 +263,18 @@ export default function RoomPage({
   }, [playerState]);
 
   const getCurrentTime = (): number => playerRef.current?.currentTime ?? 0;
+
+  const handleChatHistory = (history: Message[]) => {
+    setMessages(history);
+  };
+
+  const handleReceiveMessage = (msg: Message) => {
+    setMessages((prev) => [...prev, msg]);
+  };
+
+  const handleUsersUpdate = (userList: string[]) => {
+    setUsers(userList);
+  };
 
   const setPlayerRef = useCallback((player: HTMLVideoElement | null) => {
     if (player) {

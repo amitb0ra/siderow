@@ -24,7 +24,6 @@ app.use(cors());
 app.use(express.json());
 
 const startServer = async () => {
-  console.log(process.env.REDIS_URL);
   const redisClient = createClient({
     url: process.env.REDIS_URL,
   });
@@ -49,6 +48,10 @@ const startServer = async () => {
 
     console.log(`[REST] Room created: ${roomId}`);
     res.status(201).json({ roomId });
+  });
+
+  app.get("/api/time", (req, res) => {
+    res.json({ serverTime: Date.now() });
   });
 
   app.post("/api/check-room", async (req, res) => {
@@ -87,85 +90,19 @@ const startServer = async () => {
     };
 
     socket.on(
-      "client:player_error",
-      async (data: { roomId: string; message: string }) => {
-        console.error(
-          `[Socket.IO] Player error from ${socket.data.username}: ${data.message}`
-        );
-
-        socket.emit("client:force_disconnect", { message: "Player error" });
-
-        const { roomId, username } = socket.data;
-
-        if (roomId && username) {
-          await redisClient.sRem(`users:${roomId}`, username);
-          const userList = await redisClient.sMembers(`users:${roomId}`);
-          io.to(roomId).emit("room:users_update", userList);
-          const userCount = userList.length;
-
-          await redisClient.sRem(`ready:${roomId}`, username);
-
-          const roomStatus = await redisClient.hGet(`room:${roomId}`, "status");
-
-          if (roomStatus === "seeking") {
-            const readyCount = await redisClient.sCard(`ready:${roomId}`);
-
-            if (readyCount === userCount && userCount > 0) {
-              console.log(
-                `[Socket.IO] Erroring user was the last one. Resuming room.`
-              );
-
-              await redisClient.del(`ready:${roomId}`);
-              await redisClient.hSet(`room:${roomId}`, "status", "playing");
-
-              const roomState = await redisClient.hGetAll(`room:${roomId}`);
-              const executionTimestamp = Date.now() + 300;
-
-              await redisClient.hSet(`room:${roomId}`, "isPlaying", "true");
-              await redisClient.hSet(
-                `room:${roomId}`,
-                "lastServerTimestamp",
-                executionTimestamp.toString()
-              );
-
-              io.to(roomId).emit("video:execute_state", {
-                videoUrl: roomState.videoUrl || "",
-                currentTime: parseFloat(roomState.currentTime || "0"),
-                isPlaying: true,
-                lastServerTimestamp: executionTimestamp,
-              });
-            }
-          }
-
-          if (userCount === 0) {
-            console.log(
-              `[Socket.IO] Room ${roomId} is empty after error/disconnect. Setting 5-min expiry.`
-            );
-            await redisClient.expire(`room:${roomId}`, ROOM_EXPIRY_SECONDS);
-            await redisClient.expire(`chat:${roomId}`, ROOM_EXPIRY_SECONDS);
-            await redisClient.expire(`users:${roomId}`, ROOM_EXPIRY_SECONDS);
-          }
-        }
-      }
-    );
-
-    socket.on(
       "room:join",
       async (data: { roomId: string; username: string }) => {
         const { roomId, username } = data;
-
         const roomExists = await redisClient.exists(`room:${roomId}`);
 
         if (!roomExists) {
           console.warn(`[Socket.IO] Invalid room join attempt: ${roomId}`);
-
           socket.emit("room:join_failed", { error: "Room does not exist" });
           return;
         }
 
         socket.data.roomId = roomId;
         socket.data.username = username;
-
         socket.join(roomId);
 
         await redisClient.sAdd(`users:${roomId}`, username);
@@ -191,10 +128,6 @@ const startServer = async () => {
             isPlaying: false,
             newUrl: roomState.videoUrl || undefined,
           });
-
-          const chatHistory = await redisClient.lRange(`chat:${roomId}`, 0, -1);
-          const messages = chatHistory.map((msg) => JSON.parse(msg));
-          socket.emit("chat:history", messages);
         } else {
           console.log(
             `[Socket.IO] User ${username} joining stable room. Sending state.`
@@ -209,11 +142,13 @@ const startServer = async () => {
               10
             ),
           });
-
-          const chatHistory = await redisClient.lRange(`chat:${roomId}`, 0, -1);
-          const messages = chatHistory.map((msg) => JSON.parse(msg));
-          socket.emit("chat:history", messages);
         }
+
+        await sendSystemMessage(roomId, `${username} has joined the room.`);
+
+        const chatHistory = await redisClient.lRange(`chat:${roomId}`, 0, -1);
+        const messages = chatHistory.map((msg) => JSON.parse(msg));
+        socket.emit("chat:history", messages);
       }
     );
 
@@ -380,6 +315,69 @@ const startServer = async () => {
       }
     );
 
+    socket.on(
+      "client:player_error",
+      async (data: { roomId: string; message: string }) => {
+        console.error(
+          `[Socket.IO] Player error from ${socket.data.username}: ${data.message}`
+        );
+
+        socket.emit("client:force_disconnect", { message: "Player error" });
+
+        const { roomId, username } = socket.data;
+
+        if (roomId && username) {
+          await redisClient.sRem(`users:${roomId}`, username);
+          const userList = await redisClient.sMembers(`users:${roomId}`);
+          io.to(roomId).emit("room:users_update", userList);
+          const userCount = userList.length;
+
+          await redisClient.sRem(`ready:${roomId}`, username);
+
+          const roomStatus = await redisClient.hGet(`room:${roomId}`, "status");
+
+          if (roomStatus === "seeking") {
+            const readyCount = await redisClient.sCard(`ready:${roomId}`);
+
+            if (readyCount === userCount && userCount > 0) {
+              console.log(
+                `[Socket.IO] Erroring user was the last one. Resuming room.`
+              );
+
+              await redisClient.del(`ready:${roomId}`);
+              await redisClient.hSet(`room:${roomId}`, "status", "playing");
+
+              const roomState = await redisClient.hGetAll(`room:${roomId}`);
+              const executionTimestamp = Date.now() + 300;
+
+              await redisClient.hSet(`room:${roomId}`, "isPlaying", "true");
+              await redisClient.hSet(
+                `room:${roomId}`,
+                "lastServerTimestamp",
+                executionTimestamp.toString()
+              );
+
+              io.to(roomId).emit("video:execute_state", {
+                videoUrl: roomState.videoUrl || "",
+                currentTime: parseFloat(roomState.currentTime || "0"),
+                isPlaying: true,
+                lastServerTimestamp: executionTimestamp,
+              });
+            }
+          }
+
+          if (userCount === 0) {
+            console.log(
+              `[Socket.IO] Room ${roomId} is empty after error/disconnect. Setting 5-min expiry.`
+            );
+            await redisClient.expire(`room:${roomId}`, ROOM_EXPIRY_SECONDS);
+            await redisClient.expire(`chat:${roomId}`, ROOM_EXPIRY_SECONDS);
+            await redisClient.expire(`users:${roomId}`, ROOM_EXPIRY_SECONDS);
+          }
+        }
+      }
+    );
+
     socket.on("disconnect", async () => {
       console.log(`[Socket.IO] User disconnected: ${socket.id}`);
       const { roomId, username } = socket.data;
@@ -444,12 +442,9 @@ const startServer = async () => {
     });
   });
 
-  app.get("/api/time", (req, res) => {
-    res.json({ serverTime: Date.now() });
-  });
-
   httpServer.listen(PORT, () => {
     console.log(`🚀 Backend server running on http://localhost:${PORT}`);
   });
 };
+
 startServer();
