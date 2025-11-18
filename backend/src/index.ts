@@ -144,8 +144,6 @@ const startServer = async () => {
           });
         }
 
-        await sendSystemMessage(roomId, `${username} has joined the room.`);
-
         const chatHistory = await redisClient.lRange(`chat:${roomId}`, 0, -1);
         const messages = chatHistory.map((msg) => JSON.parse(msg));
         socket.emit("chat:history", messages);
