@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Watch Party",
-  description: "Watch Party",
+  title: "SideRow",
+  description: "Watch videos together with friends in real-time.",
 };
 
 export default function RootLayout({

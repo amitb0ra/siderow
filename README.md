@@ -11,8 +11,8 @@
 Clone the repository and install all dependencies using `pnpm`.
 
 ```bash
-git clone https://github.com/amitb0ra/watch-party.git
-cd watch-party
+git clone https://github.com/amitb0ra/siderow.git
+cd siderow
 pnpm install
 ```
 

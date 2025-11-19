@@ -113,7 +113,7 @@ export default function HomePage() {
           <div className="flex items-center justify-center gap-2 mb-4">
             <Zap className="w-8 h-8 text-primary" />
             <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
-              WatchParty
+              SideRow
             </h1>
           </div>
           <p className="text-muted-foreground">

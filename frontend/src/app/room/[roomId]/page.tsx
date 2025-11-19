@@ -387,7 +387,7 @@ export default function RoomPage({
       <div className="bg-card border-b border-border p-4 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-foreground">WatchParty</h1>
+            <h1 className="text-2xl font-bold text-foreground">SideRow</h1>
             <div className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
               Room: {roomId}
             </div>
